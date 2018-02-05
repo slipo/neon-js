@@ -3,9 +3,8 @@ import * as neoscan from './neoscan'
 import { Account } from '../wallet'
 import { ASSET_ID } from '../consts'
 import { Query } from '../rpc'
-import { Transaction } from '../transactions'
+import { Transaction, TxAttrUsage } from '../transactions'
 import { reverseHex } from '../utils'
-import { txAttrUsage } from '../transactions/txAttrUsage'
 
 /** This determines which API we should dial.
 * 0 means 100% neoscan
@@ -271,7 +270,7 @@ const addAttributesForMintToken = (config) => {
   if ((typeof config.script === 'object') && config.script.operation === 'mintTokens' && config.script.scriptHash) {
     config.override.attributes = [{
       data: reverseHex(config.script.scriptHash),
-      usage: txAttrUsage.Script
+      usage: TxAttrUsage.Script
     }]
   }
   return config
@@ -290,7 +289,15 @@ const attachInvokedContractForMintToken = (config) => {
           invocationScript: '0000',
           verificationScript: contractState.result.script
         }
-        config.tx.scripts.unshift(attachInvokedContract)
+
+        // We need to order this for the VM.
+        const acct = config.privateKey ? new Account(config.privateKey) : new Account(config.publicKey)
+        if (parseInt(config.script.scriptHash, 16) > parseInt(acct.scriptHash, 16)) {
+          config.tx.scripts.push(attachInvokedContract)
+        } else {
+          config.tx.scripts.unshift(attachInvokedContract)
+        }
+
         return config
       })
   }
